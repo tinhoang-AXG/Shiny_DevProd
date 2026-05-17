@@ -8,7 +8,7 @@ ui <- fluidPage(
   titlePanel(
     div(
       style = "display:flex; align-items:center; gap:12px;",
-      cfg$app_name,
+      paste(cfg$app_name, "v1.0"),
       env_badge()          # green DEV / red PROD badge in the title bar
     )
   ),
