@@ -1,0 +1,23 @@
+default:
+  app_name: "My App (Dev)"
+  db_host: "localhost"
+  db_port: 5432
+  db_name: "dev"               # your local dev Postgres DB
+  db_user: !expr Sys.getenv("DEV_DB_USER")
+  db_password: !expr Sys.getenv("DEV_DB_PASSWORD")
+  api_url: "http://localhost:8000"
+  api_key: !expr Sys.getenv("API_KEY")
+  debug: true
+  log_level: "DEBUG"
+
+production:
+  app_name: "My App"
+  db_host: "localhost"         # still localhost — prod DB is also on your laptop
+  db_port: 5432
+  db_name: "prod"              # your local prod Postgres DB
+  db_user: !expr Sys.getenv("PROD_DB_USER")
+  db_password: !expr Sys.getenv("PROD_DB_PASSWORD")
+  api_url: "http://localhost:8000"
+  api_key: !expr Sys.getenv("API_KEY")
+  debug: false
+  log_level: "WARN"
