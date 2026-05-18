@@ -5,13 +5,19 @@
 source("global.R")
 source("modules/projects_module.R")
 
+enableBookmarking(store = "url")
+
 # ── UI ─────────────────────────────────────────────────────────────────────────
 ui <- fluidPage(
+
   titlePanel(
     div(
       style = "display:flex; align-items:center; gap:12px;",
       paste(cfg$app_name, "v1.0"),
-      env_badge()
+      env_badge(),
+      bookmarkButton(label = "Bookmark this view",
+                     icon  = icon("bookmark"),
+                     style = "margin-left:auto; font-size:12px;")
     )
   ),
 
@@ -36,6 +42,7 @@ ui <- fluidPage(
 
     mainPanel(
       tabsetPanel(
+        id = "main_tabs",
         tabPanel("Plot",
           br(),
           plotOutput("plot")
@@ -68,6 +75,37 @@ ui <- fluidPage(
 
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
+
+  # Exclude inputs that shouldn't be in the bookmark URL
+  setBookmarkExclude(c(
+    "submit",
+    "fetch",
+    "check_health",
+    "new_value",
+    "projects-open_modal",
+    "projects-submit_project",
+    "projects-cancel_project",
+    "projects-edit_project_id",
+    "projects-edit_1",      # ← add these
+    "projects-edit_2",
+    "projects-edit_3",
+    "projects-edit_4",
+    "projects-edit_5",
+    "projects-edit_6",
+    "projects-edit_7",
+    "projects-edit_8",
+    "projects-edit_9",
+    "projects-edit_10"
+  ))
+
+  # # Restore tab from bookmark on load
+  # observe({
+  #   session$doBookmark
+  # })
+  # Restore tab from bookmark on load
+  onRestored(function(state) {
+    updateTabsetPanel(session, "main_tabs", selected = state$input$main_tabs)
+  })
 
   # ── Wire in the projects module ───────────────────────────────────────────────
   projectsServer("projects")    # ← must match the id in projectsUI()
