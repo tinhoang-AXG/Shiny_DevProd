@@ -1,7 +1,9 @@
 # shiny/app.R
 # global.R has already run — cfg, all api_*() helpers, and env_badge() available.
 
+# shiny/app.R
 source("global.R")
+source("modules/projects_module.R")
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
 ui <- fluidPage(
@@ -9,13 +11,14 @@ ui <- fluidPage(
     div(
       style = "display:flex; align-items:center; gap:12px;",
       paste(cfg$app_name, "v1.0"),
-      env_badge()          # green DEV / red PROD badge in the title bar
+      env_badge()
     )
   ),
 
   sidebarLayout(
     sidebarPanel(
-      h4("Fetch Data"),
+      # ── Measurements section ──────────────────────────────────────────────────
+      h4("Measurements"),
       sliderInput("limit", "Number of rows", min = 10, max = 1000, value = 100),
       actionButton("fetch", "Fetch Measurements", class = "btn-primary"),
       hr(),
@@ -25,7 +28,7 @@ ui <- fluidPage(
       actionButton("submit", "Submit", class = "btn-success"),
       hr(),
 
-      # API status indicator
+      # ── API status ────────────────────────────────────────────────────────────
       h4("API Status"),
       actionButton("check_health", "Check Health"),
       verbatimTextOutput("health_out")
@@ -45,8 +48,12 @@ ui <- fluidPage(
           br(),
           tableOutput("data_table")
         ),
+        tabPanel("Projects",
+          br(),
+          projectsUI("projects")    # ← module UI lives in the Projects tab
+        ),
 
-        # Debug tab — only present in dev
+        # Debug tab — dev only
         if (cfg$debug) {
           tabPanel("Debug",
             br(),
@@ -62,9 +69,12 @@ ui <- fluidPage(
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
+  # ── Wire in the projects module ───────────────────────────────────────────────
+  projectsServer("projects")    # ← must match the id in projectsUI()
+
   # ── Health check ─────────────────────────────────────────────────────────────
   output$health_out <- renderPrint({
-    input$check_health   # re-run on button press
+    input$check_health
     isolate({
       result <- tryCatch(api_health(), error = function(e) list(error = e$message))
       cat(sprintf("Status : %s\n", result$status %||% "error"))
@@ -101,7 +111,6 @@ server <- function(input, output, session) {
         sprintf("Inserted %.4f into %s", result$value, result$db),
         type = "message"
       )
-      # Auto-refresh data after insert
       shinyjs::click("fetch")
     }, error = function(e) {
       showNotification(e$message, type = "error", duration = 8)
@@ -111,7 +120,6 @@ server <- function(input, output, session) {
   # ── Plot ──────────────────────────────────────────────────────────────────────
   output$plot <- renderPlot({
     req(measurements())
-    #values <- unlist(measurements()$data$value)
     values <- sapply(measurements()$data, function(x) x$value)
     req(length(values) > 0)
 
@@ -134,15 +142,13 @@ server <- function(input, output, session) {
 
   # ── Raw data table ────────────────────────────────────────────────────────────
   output$data_table <- renderTable({
-      req(measurements())
-  
-      # convert list of lists to data frame
-      do.call(rbind, lapply(measurements()$data, function(x) {
-        data.frame(id = x$id, value = x$value, created_at = x$created_at)
-      }))
+    req(measurements())
+    do.call(rbind, lapply(measurements()$data, function(x) {
+      data.frame(id = x$id, value = x$value, created_at = x$created_at)
+    }))
   })
 
-  # ── Debug tab (dev only) ──────────────────────────────────────────────────────
+  # ── Debug tab ─────────────────────────────────────────────────────────────────
   if (cfg$debug) {
     output$config_table <- renderTable({
       data.frame(

@@ -19,6 +19,35 @@ log_info("Shiny starting | env: {active_env} | api: {cfg$api_url}")
 # All requests go through here. Picks up cfg$api_url and cfg$api_key
 # automatically — no endpoint code needs to know which environment it's in.
 
+# call_api <- function(method = "GET", endpoint, params = list(), body = NULL) {
+#   url <- paste0(cfg$api_url, endpoint)
+#   headers <- httr::add_headers("X-API-KEY" = cfg$api_key)
+
+#   log_debug("{method} {url}")
+
+#   response <- tryCatch({
+#     if (method == "GET") {
+#       httr::GET(url, query = params, headers, httr::timeout(30))
+#     } else if (method == "POST") {
+#       httr::POST(url, query = params, headers, body = body,
+#                  encode = "json", httr::timeout(30))
+#     }
+#   }, error = function(e) {
+#     log_error("API call failed: {e$message}")
+#     stop(sprintf("Could not reach API at %s — is it running?", cfg$api_url))
+#   })
+
+#   status <- httr::status_code(response)
+
+#   if (status == 401) stop("API key missing — check API_KEY in .Renviron")
+#   if (status == 403) stop("API key invalid — check API_KEY in .Renviron")
+#   if (httr::http_error(response)) {
+#     msg <- httr::content(response, "parsed")$error %||% "Unknown API error"
+#     stop(sprintf("API error %s: %s", status, msg))
+#   }
+
+#   httr::content(response, "parsed")
+# }
 call_api <- function(method = "GET", endpoint, params = list(), body = NULL) {
   url <- paste0(cfg$api_url, endpoint)
   headers <- httr::add_headers("X-API-KEY" = cfg$api_key)
@@ -31,6 +60,9 @@ call_api <- function(method = "GET", endpoint, params = list(), body = NULL) {
     } else if (method == "POST") {
       httr::POST(url, query = params, headers, body = body,
                  encode = "json", httr::timeout(30))
+    } else if (method == "PUT") {          # ← add this
+      httr::PUT(url, query = params, headers, body = body,
+                encode = "json", httr::timeout(30))
     }
   }, error = function(e) {
     log_error("API call failed: {e$message}")
@@ -68,6 +100,24 @@ api_post_measurement <- function(value) {
   call_api("POST", "/data/measurements", params = list(value = value))
 }
 
+# ── Projects API helpers ───────────────────────────────────────────────────────
+
+api_get_projects <- function() {
+  call_api("GET", "/projects")
+}
+
+api_get_project <- function(id) {
+  call_api("GET", sprintf("/projects/%s", id))
+}
+
+api_post_project <- function(payload) {
+  call_api("POST", "/projects", body = payload)
+}
+
+api_put_project <- function(id, payload) {
+  call_api("PUT", sprintf("/projects/%s", id), body = payload)
+}
+
 # ── 4. UI helpers ──────────────────────────────────────────────────────────────
 # Environment badge shown in the header — makes it immediately obvious
 # which environment you're working in.
@@ -90,3 +140,4 @@ env_badge <- function() {
 
 # Null coalescing operator (R doesn't have one built in)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
+
