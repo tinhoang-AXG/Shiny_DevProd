@@ -51,16 +51,33 @@ reg.finalizer(globalenv(), function(e) {
 
 # ── 4. Helpers ────────────────────────────────────────────────────────────────
 
+# Null coalescing operator
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
 # Centralised query runner — keeps endpoint code clean
+# run_query <- function(sql, params = list()) {
+#   log_debug("Query: {sql}")
+#   tryCatch(
+#     pool::dbGetQuery(db_pool, sql, params = params),
+#     error = function(e) {
+#       log_error("Query failed: {e$message}")
+#       stop(e)
+#     }
+#   )
+# }
 run_query <- function(sql, params = list()) {
   log_debug("Query: {sql}")
-  tryCatch(
-    pool::dbGetQuery(db_pool, sql, params = params),
-    error = function(e) {
-      log_error("Query failed: {e$message}")
-      stop(e)
+  tryCatch({
+    if (length(params) == 0) {
+      pool::dbGetQuery(db_pool, sql)
+    } else {
+      pool::dbGetQuery(db_pool, sql, params = params)
     }
-  )
+  },
+  error = function(e) {
+    log_error("Query failed: {e$message}")
+    stop(e)
+  })
 }
 
 # Standard error response
@@ -195,5 +212,126 @@ function(res, value) {
   error = function(e) {
     log_error("Insert failed: {e$message}")
     api_error(res, 500, "Insert failed")
+  })
+}
+
+# ── Projects endpoints ────────────────────────────────────────────────────────
+
+#* Fetch all projects
+#* @get /projects
+function(res) {
+  log_info("Fetching all projects from '{cfg$db_name}'")
+
+  rows <- tryCatch(
+    run_query("SELECT * FROM projects ORDER BY created_at DESC"),
+    error = function(e) return(api_error(res, 500, "Database query failed"))
+  )
+
+  list(
+    data = rows,
+    n    = nrow(rows),
+    db   = cfg$db_name,
+    env  = active_env
+  )
+}
+
+#* Fetch a single project by id
+#* @param id Project ID
+#* @get /projects/<id>
+function(res, id) {
+  id <- as.integer(id)
+  if (is.na(id)) return(api_error(res, 400, "id must be an integer"))
+
+  rows <- tryCatch(
+    run_query("SELECT * FROM projects WHERE id = $1", params = list(id)),
+    error = function(e) return(api_error(res, 500, "Database query failed"))
+  )
+
+  if (nrow(rows) == 0) return(api_error(res, 404, "Project not found"))
+
+  list(data = rows[1, ], db = cfg$db_name, env = active_env)
+}
+
+#* Insert a new project
+#* @post /projects
+function(req, res) {
+  body <- jsonlite::fromJSON(req$postBody)
+
+  if (is.null(body$project_name) || !nzchar(body$project_name))
+    return(api_error(res, 400, "project_name is required"))
+  if (is.null(body$client_name) || !nzchar(body$client_name))
+    return(api_error(res, 400, "client_name is required"))
+
+  log_info("Inserting project '{body$project_name}' into '{cfg$db_name}'")
+
+  tryCatch({
+    pool::dbExecute(db_pool, "
+      INSERT INTO projects
+        (project_name, client_name, category, start_date, budget, status, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ", params = list(
+      body$project_name,
+      body$client_name,
+      body$category %||% NA,
+      if (!is.null(body$start_date)) as.Date(body$start_date) else NA,
+      if (!is.null(body$budget)) as.numeric(body$budget) else NA,
+      body$status %||% "Active",
+      body$notes %||% NA
+    ))
+    res$status <- 201
+    list(status = "created", project_name = body$project_name, db = cfg$db_name)
+  },
+  error = function(e) {
+    log_error("Insert failed: {e$message}")
+    api_error(res, 500, "Insert failed")
+  })
+}
+
+#* Update an existing project
+#* @param id Project ID
+#* @put /projects/<id>
+function(req, res, id) {
+  id   <- as.integer(id)
+  if (is.na(id)) return(api_error(res, 400, "id must be an integer"))
+
+  body <- jsonlite::fromJSON(req$postBody)
+
+  if (is.null(body$project_name) || !nzchar(body$project_name))
+    return(api_error(res, 400, "project_name is required"))
+  if (is.null(body$client_name) || !nzchar(body$client_name))
+    return(api_error(res, 400, "client_name is required"))
+
+  log_info("Updating project id={id} in '{cfg$db_name}'")
+
+  tryCatch({
+    rows_affected <- pool::dbExecute(db_pool, "
+      UPDATE projects SET
+        project_name = $1,
+        client_name  = $2,
+        category     = $3,
+        start_date   = $4,
+        budget       = $5,
+        status       = $6,
+        notes        = $7,
+        updated_at   = NOW()
+      WHERE id = $8
+    ", params = list(
+      body$project_name,
+      body$client_name,
+      body$category %||% NA,
+      if (!is.null(body$start_date)) as.Date(body$start_date) else NA,
+      if (!is.null(body$budget)) as.numeric(body$budget) else NA,
+      body$status %||% "Active",
+      body$notes %||% NA,
+      id
+    ))
+
+    if (rows_affected == 0) return(api_error(res, 404, "Project not found"))
+
+    list(status = "updated", id = id, db = cfg$db_name)
+  },
+  error = function(e) {
+    log_error("Update failed: {e$message}")
+    api_error(res, 500, "Update failed")
   })
 }
