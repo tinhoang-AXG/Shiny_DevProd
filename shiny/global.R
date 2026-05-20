@@ -141,3 +141,33 @@ env_badge <- function() {
 # Null coalescing operator (R doesn't have one built in)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 
+# ── Authentication ─────────────────────────────────────────────────────────────
+library(shinymanager)
+
+app_root <- Sys.getenv("APP_ROOT", unset = getwd())
+
+credentials_path <- if (active_env == "production") {
+  file.path(app_root, "auth/credentials_prod.sqlite")
+} else {
+  file.path(app_root, "auth/credentials_dev.sqlite")
+}
+
+# Passphrase to decrypt the credentials DB
+credentials_passphrase <- Sys.getenv("DB_PASSPHRASE", unset = "local-dev-passphrase")
+
+# ── Role helper ────────────────────────────────────────────────────────────────
+# Call this inside the server to get the current user's role.
+# Returns "admin", "manager", or "user"
+
+get_user_role <- function(session) {
+  tryCatch({
+    info <- shinymanager:::.tok$get(session$token)
+    if (is.null(info)) return("user")
+    info$role %||% "user"
+  }, error = function(e) "user")
+}
+
+# ── Role permission helpers ────────────────────────────────────────────────────
+is_admin   <- function(role) role == "admin"
+is_manager <- function(role) role %in% c("admin", "manager")
+can_edit   <- function(role) role %in% c("admin", "manager")

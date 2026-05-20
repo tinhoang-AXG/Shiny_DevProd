@@ -4,3 +4,5 @@
 .Ruserdata
 .Renviron
 
+auth/credentials_dev.sqlite
+auth/credentials_prod.sqlite

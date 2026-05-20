@@ -15,22 +15,35 @@ library(shiny)
 projectsUI <- function(id) {
   ns <- NS(id)
   tagList(
-    actionButton(
-      ns("open_modal"),
-      "New Project",
-      class = "btn-primary",
-      icon  = icon("plus")
-    ),
+    uiOutput(ns("new_project_btn")),  # ← rendered server-side based on role
     br(), br(),
-    uiOutput(ns("projects_table")),   # ← changed from tableOutput
+    uiOutput(ns("projects_table")),
     uiOutput(ns("modal_ui"))
   )
 }
 
 # ── Server ─────────────────────────────────────────────────────────────────────
-projectsServer <- function(id) {
+projectsServer <- function(id, user_role = reactive("user")) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # ── Role-based UI ─────────────────────────────────────────────────────────────
+    output$new_project_btn <- renderUI({
+      if (can_edit(user_role())) {
+        actionButton(
+          ns("open_modal"),
+          "New Project",
+          class = "btn-primary",
+          icon  = icon("plus")
+        )
+      } else {
+        # Regular users see a read-only message instead
+        tags$p(
+          class = "text-muted",
+          icon("lock"), " View only — contact an admin to add projects"
+        )
+      }
+    })
 
     # ── Reactive state ──────────────────────────────────────────────────────────
     # NULL = insert mode, integer = edit mode (holds project id)
@@ -72,13 +85,17 @@ projectsServer <- function(id) {
                           format = "f", digits = 2, big.mark = ",")),
           tags$td(x$status %||% ""),
           tags$td(
-            actionButton(
-              inputId = ns(paste0("edit_", x$id)),
-              label   = "Edit",
-              class   = "btn-xs btn-warning",
-              onclick = sprintf("Shiny.setInputValue('%s', %s, {priority: 'event'})",
-                                ns("edit_project_id"), x$id)
-            )
+              if (can_edit(user_role())) {
+                actionButton(
+                  inputId = ns(paste0("edit_", x$id)),
+                  label   = "Edit",
+                  class   = "btn-xs btn-warning",
+                  onclick = sprintf(
+                    "Shiny.setInputValue('%s', %s, {priority: 'event'})",
+                    ns("edit_project_id"), x$id
+                  )
+                )
+              }
           )
         )
       })
