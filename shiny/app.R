@@ -8,7 +8,7 @@ source("modules/projects_module.R")
 enableBookmarking(store = "url")
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
-ui <- fluidPage(
+app_ui <- fluidPage(
 
   titlePanel(
     div(
@@ -73,29 +73,47 @@ ui <- fluidPage(
   )
 )
 
+ui <- secure_app(
+  app_ui,
+  tags_top = tags$div(
+    style = "text-align:center; padding:20px;",
+    tags$h3("Please log in to continue"),
+    env_badge()
+  ),
+  tags_bottom = tags$div(
+    style = "text-align:center; color:#999; font-size:12px;",
+    paste("Environment:", active_env)
+  )
+)
+
 # ── Server ─────────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-  # Exclude inputs that shouldn't be in the bookmark URL
+    # ── Auth — must be first in server ───────────────────────────────────────────
+  auth <- secure_server(
+    check_credentials = check_credentials(
+      db         = credentials_path,
+      passphrase = credentials_passphrase
+    )
+  )
+
+  # Get current user role reactively
+  user_role <- reactive({
+    req(auth$user)
+    auth$role %||% "user"
+  })
+
+  # ── Exclude auth inputs from bookmarks ────────────────────────────────────────
   setBookmarkExclude(c(
-    "submit",
-    "fetch",
-    "check_health",
-    "new_value",
-    "projects-open_modal",
-    "projects-submit_project",
-    "projects-cancel_project",
-    "projects-edit_project_id",
-    "projects-edit_1",      # ← add these
-    "projects-edit_2",
-    "projects-edit_3",
-    "projects-edit_4",
-    "projects-edit_5",
-    "projects-edit_6",
-    "projects-edit_7",
-    "projects-edit_8",
-    "projects-edit_9",
-    "projects-edit_10"
+    "submit", "fetch", "check_health", "new_value",
+    "projects-open_modal", "projects-submit_project",
+    "projects-cancel_project", "projects-edit_project_id",
+    "projects-edit_1", "projects-edit_2", "projects-edit_3",
+    "projects-edit_4", "projects-edit_5", "projects-edit_6",
+    "projects-edit_7", "projects-edit_8", "projects-edit_9",
+    "projects-edit_10",
+    ".shinymanager_admin",    # ← exclude auth inputs
+    ".shinymanager_password"
   ))
 
   # # Restore tab from bookmark on load
@@ -108,7 +126,7 @@ server <- function(input, output, session) {
   })
 
   # ── Wire in the projects module ───────────────────────────────────────────────
-  projectsServer("projects")    # ← must match the id in projectsUI()
+  projectsServer("projects", user_role = user_role)
 
   # ── Health check ─────────────────────────────────────────────────────────────
   output$health_out <- renderPrint({
