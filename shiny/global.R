@@ -7,6 +7,7 @@ library(shiny)
 library(httr)
 library(jsonlite)
 library(logger)
+library(shinyjs)
 
 # ── 1. Load config (use :: directly — never library(config)) ──────────────────
 cfg <- config::get(file = "/Users/tinhoang/Desktop/Shiny_DevProd/config.yml")

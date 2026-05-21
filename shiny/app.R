@@ -4,12 +4,13 @@
 # shiny/app.R
 source("global.R")
 source("modules/projects_module.R")
+source("modules/long_task_module.R")
 
 enableBookmarking(store = "url")
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
 app_ui <- fluidPage(
-
+  shinyjs::useShinyjs(), 
   titlePanel(
     div(
       style = "display:flex; align-items:center; gap:12px;",
@@ -58,6 +59,10 @@ app_ui <- fluidPage(
         tabPanel("Projects",
           br(),
           projectsUI("projects")    # ← module UI lives in the Projects tab
+        ),
+        tabPanel("Long Task",
+          br(),
+          longTaskUI("long_task")
         ),
 
         # Debug tab — dev only
@@ -127,6 +132,9 @@ server <- function(input, output, session) {
 
   # ── Wire in the projects module ───────────────────────────────────────────────
   projectsServer("projects", user_role = user_role)
+
+  # -- Long Task ----
+  longTaskServer("long_task")
 
   # ── Health check ─────────────────────────────────────────────────────────────
   output$health_out <- renderPrint({
